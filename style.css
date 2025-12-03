@@ -1,0 +1,67 @@
+:root {
+    --bg-color: #f0f2f5;
+    --primary: #4a90e2;
+    --success: #00b894;
+    --danger: #d63031;
+    --card-bg: #ffffff;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background-color: var(--bg-color);
+    color: #2d3436;
+    margin: 0;
+    padding: 20px;
+}
+
+.container { max-width: 600px; margin: 0 auto; }
+header { text-align: center; margin-bottom: 20px; }
+h1 { margin: 0; font-size: 1.5rem; }
+
+.card {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+}
+
+/* Tabs */
+.tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+.tab-btn {
+    flex: 1; padding: 12px; border: none; background: transparent;
+    font-weight: 600; color: #b2bec3; cursor: pointer;
+    border-bottom: 3px solid transparent;
+}
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Form */
+.form-group { margin-bottom: 15px; }
+input, select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #dfe6e9; box-sizing: border-box; }
+
+.toggle-group { display: flex; gap: 10px; margin-top: 5px; }
+.toggle-btn {
+    flex: 1; padding: 10px; border: 1px solid #dfe6e9; background: white;
+    border-radius: 8px; cursor: pointer; transition: 0.2s;
+}
+
+.toggle-btn.success { background: var(--success); color: white; border-color: var(--success); }
+.toggle-btn.fail { background: var(--danger); color: white; border-color: var(--danger); }
+
+.reason-input.hidden { display: none; }
+.reason-input { margin-top: 10px; border-color: var(--danger); }
+
+.submit-btn {
+    width: 100%; padding: 14px; background: var(--primary); color: white;
+    border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 10px;
+}
+
+/* Table & Chart */
+.chart-container { position: relative; height: 300px; width: 100%; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th, td { padding: 10px 5px; text-align: left; border-bottom: 1px solid #f1f2f6; }
+.dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; }
+.dot-green { background: var(--success); }
+.dot-red { background: var(--danger); }

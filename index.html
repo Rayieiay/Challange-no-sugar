@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bina Dewa Kurus Tracker</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>🔥 Bina Dewa Kurus</h1>
+            <p>Target: 1 Des 2025 - 1 Des 2026</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="app.switchTab('checkin')">Daily Check-in</button>
+            <button class="tab-btn" onclick="app.switchTab('progress')">Grafik & Log</button>
+        </div>
+
+        <div id="checkin-view" class="tab-content active">
+            <div class="card">
+                <h2>Lapor Hari Ini</h2>
+                <div class="form-group">
+                    <label>Nama Peserta</label>
+                    <select id="userSelect">
+                        <option value="Roy">Roy</option>
+                        <option value="Abeen">Abeen</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Tanggal</label>
+                    <input type="date" id="dateInput">
+                </div>
+
+                <hr>
+
+                <div class="check-item">
+                    <label>🍬 No Sugar</label>
+                    <div class="toggle-group" id="grp-sugar">
+                        <button class="toggle-btn" onclick="app.setStatus('sugar', true)">Berhasil</button>
+                        <button class="toggle-btn" onclick="app.setStatus('sugar', false)">Gagal</button>
+                    </div>
+                    <input type="text" id="note-sugar" class="reason-input hidden" placeholder="Alasan gagal sugar? (Wajib)">
+                </div>
+
+                <div class="check-item">
+                    <label>⏳ Intermittent Fasting</label>
+                    <div class="toggle-group" id="grp-if">
+                        <button class="toggle-btn" onclick="app.setStatus('if', true)">Berhasil</button>
+                        <button class="toggle-btn" onclick="app.setStatus('if', false)">Gagal</button>
+                    </div>
+                    <input type="text" id="note-if" class="reason-input hidden" placeholder="Alasan gagal IF? (Wajib)">
+                </div>
+
+                <div class="check-item">
+                    <label>🏃‍♂️ Olahraga</label>
+                    <div class="toggle-group" id="grp-sport">
+                        <button class="toggle-btn" onclick="app.setStatus('sport', true)">Berhasil</button>
+                        <button class="toggle-btn" onclick="app.setStatus('sport', false)">Gagal</button>
+                    </div>
+                    <input type="text" id="note-sport" class="reason-input hidden" placeholder="Alasan tidak olahraga? (Wajib)">
+                </div>
+
+                <button class="submit-btn" id="btnSubmit">Simpan Laporan</button>
+            </div>
+        </div>
+
+        <div id="progress-view" class="tab-content">
+            <div class="card">
+                <h3>📈 Grafik Performa</h3>
+                <p style="font-size: 0.8rem; color: #666;">Skor harian (0-3 poin)</p>
+                <div class="chart-container">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Riwayat Aktivitas</h3>
+                <div class="table-responsive">
+                    <table id="logTable">
+                        <thead>
+                            <tr>
+                                <th>Tgl</th>
+                                <th>Nama</th>
+                                <th>S</th>
+                                <th>I</th>
+                                <th>O</th>
+                                <th>Ket</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>
