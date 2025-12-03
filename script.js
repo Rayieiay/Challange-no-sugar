@@ -49,11 +49,30 @@ window.app = {
         if (isSuccess) {
             btns[0].classList.add('success');
             inputNote.classList.add('hidden');
-            inputNote.value = ''; 
+            inputNote.value = '';
         } else {
             btns[1].classList.add('fail');
             inputNote.classList.remove('hidden');
         }
+    },
+
+    // Reset form setelah submit sukses
+    resetForm: () => {
+        currentCheckIn = { sugar: null, if: null, sport: null };
+
+        ['sugar', 'if', 'sport'].forEach(type => {
+            const grp = document.getElementById(`grp-${type}`);
+            const btns = grp.querySelectorAll('button');
+            const inputNote = document.getElementById(`note-${type}`);
+
+            btns[0].className = 'toggle-btn';
+            btns[1].className = 'toggle-btn';
+
+            inputNote.value = '';
+            inputNote.classList.add('hidden');
+        });
+
+        // Tanggal tetap di hari yang sama, hanya alasan & status yang direset
     }
 };
 
@@ -103,7 +122,8 @@ document.getElementById('btnSubmit').addEventListener('click', async () => {
         });
 
         alert("Berhasil lapor! Data tersimpan di cloud.");
-        location.reload(); // Refresh halaman
+        window.app.resetForm();
+        window.app.switchTab('progress'); // otomatis pindah ke tab Grafik & Log
     } catch (e) {
         console.error("Error adding document: ", e);
         alert("Gagal menyimpan: " + e.message);
@@ -122,19 +142,83 @@ onSnapshot(q, (snapshot) => {
 
     snapshot.forEach((doc) => {
         const data = doc.data();
-        logs.push(data);
 
-        // Render Tabel Log
-        const row = `
-            <tr>
-                <td>${data.date.substring(5)}</td> <td><strong>${data.user}</strong></td>
-                <td>${data.sugar ? '<span class="dot dot-green"></span>' : '<span class="dot dot-red"></span>'}</td>
-                <td>${data.if ? '<span class="dot dot-green"></span>' : '<span class="dot dot-red"></span>'}</td>
-                <td>${data.sport ? '<span class="dot dot-green"></span>' : '<span class="dot dot-red"></span>'}</td>
-                <td style="font-size:10px; color:#666;">${data.notes ? '📝' : '-'}</td>
-            </tr>
+        // Hitung skor harian (0-3)
+        let score = 0;
+        if (data.sugar) score++;
+        if (data.if) score++;
+        if (data.sport) score++;
+
+        const enriched = { ...data, score };
+        logs.push(enriched);
+
+        // Potong notes untuk tampilan singkat di tabel
+        const shortNotes = data.notes && data.notes.length > 40
+            ? data.notes.substring(0, 37) + '...'
+            : (data.notes || '');
+
+        // Render Tabel Log (baris utama)
+        const row = document.createElement('tr');
+        row.className = 'log-row';
+        row.dataset.notes = data.notes || '';
+        row.dataset.score = String(score);
+        row.dataset.sugar = data.sugar ? '1' : '0';
+        row.dataset.if = data.if ? '1' : '0';
+        row.dataset.sport = data.sport ? '1' : '0';
+
+        row.innerHTML = `
+            <td>${data.date.substring(5)}</td>
+            <td><strong>${data.user}</strong></td>
+            <td>${data.sugar ? '<span class="dot dot-green"></span>' : '<span class="dot dot-red"></span>'}</td>
+            <td>${data.if ? '<span class="dot dot-green"></span>' : '<span class="dot dot-red"></span>'}</td>
+            <td>${data.sport ? '<span class="dot dot-green"></span>' : '<span class="dot dot-red"></span>'}</td>
+            <td>
+                <div class="ket-main">
+                    ${data.notes ? '📝' : '-'}
+                    ${shortNotes ? `<span style="font-size:10px; color:#888;">${shortNotes}</span>` : ''}
+                </div>
+                <div class="ket-sub">Skor: ${score} / 3</div>
+            </td>
         `;
-        tbody.innerHTML += row;
+
+        tbody.appendChild(row);
+    });
+
+    // Pasang event click untuk show/hide detail alasan di bawah baris
+    document.querySelectorAll('.log-row').forEach(row => {
+        row.addEventListener('click', () => {
+            const next = row.nextElementSibling;
+            if (next && next.classList.contains('detail-row')) {
+                // Jika sudah ada detail row, toggle (hapus)
+                next.remove();
+                return;
+            }
+
+            const notes = row.dataset.notes;
+            const score = row.dataset.score;
+            const sugar = row.dataset.sugar === '1';
+            const ifVal = row.dataset.if === '1';
+            const sport = row.dataset.sport === '1';
+
+            const detail = document.createElement('tr');
+            detail.className = 'detail-row';
+            detail.innerHTML = `
+                <td colspan="6">
+                    <div><strong>Ringkasan Hari Ini:</strong> Skor ${score} / 3</div>
+                    <div style="margin:4px 0 2px;">
+                        Sugar: ${sugar ? '✅' : '❌'} &nbsp;|&nbsp;
+                        IF: ${ifVal ? '✅' : '❌'} &nbsp;|&nbsp;
+                        Olahraga: ${sport ? '✅' : '❌'}
+                    </div>
+                    <div>
+                        <strong>Alasan:</strong>
+                        <span>${notes || '-'}</span>
+                    </div>
+                </td>
+            `;
+
+            row.parentNode.insertBefore(detail, row.nextSibling);
+        });
     });
 
     updateChart(logs);
