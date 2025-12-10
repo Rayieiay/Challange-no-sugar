@@ -12,37 +12,32 @@ const firebaseConfig = {
     measurementId: "G-STFEFJQPVM"
 };
 
-// Inisialisasi Firebase
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 const logsRef = collection(db, "daily_logs");
 
 // --- 2. GLOBAL STATE ---
 let currentCheckIn = { sugar: null, if: null, sport: null };
-let myChart = null; // Variable untuk Chart instance
+let myChart = null;
 
 // --- 3. LOGIC APLIKASI ---
 window.app = {
-    // Fungsi Ganti Tab
     switchTab: (tabName) => {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
         document.getElementById(tabName + '-view').classList.add('active');
         
-        // Highlight tombol tab
         const btns = document.querySelectorAll('.tab-btn');
         if(tabName === 'checkin') btns[0].classList.add('active');
         else btns[1].classList.add('active');
     },
 
-    // Fungsi Pilih Status (Berhasil/Gagal)
     setStatus: (type, isSuccess) => {
         currentCheckIn[type] = isSuccess;
         const grp = document.getElementById(`grp-${type}`);
         const btns = grp.querySelectorAll('button');
         const inputNote = document.getElementById(`note-${type}`);
 
-        // Reset class
         btns[0].className = 'toggle-btn';
         btns[1].className = 'toggle-btn';
 
@@ -56,7 +51,6 @@ window.app = {
         }
     },
 
-    // Reset form setelah submit sukses
     resetForm: () => {
         currentCheckIn = { sugar: null, if: null, sport: null };
 
@@ -71,8 +65,6 @@ window.app = {
             inputNote.value = '';
             inputNote.classList.add('hidden');
         });
-
-        // Tanggal tetap di hari yang sama, hanya alasan & status yang direset
     }
 };
 
@@ -81,13 +73,11 @@ document.getElementById('btnSubmit').addEventListener('click', async () => {
     const user = document.getElementById('userSelect').value;
     const date = document.getElementById('dateInput').value;
 
-    // Validasi Input Kosong
     if (currentCheckIn.sugar === null || currentCheckIn.if === null || currentCheckIn.sport === null) {
         alert("Harap isi status Berhasil/Gagal untuk semua kategori!"); return;
     }
     if (!date) { alert("Pilih tanggal dulu!"); return; }
 
-    // Validasi Alasan
     let notes = [];
     if (!currentCheckIn.sugar && !document.getElementById('note-sugar').value) {
         alert("Alasan gagal Sugar wajib diisi!"); return;
@@ -104,13 +94,11 @@ document.getElementById('btnSubmit').addEventListener('click', async () => {
     }
     if (!currentCheckIn.sport) notes.push(`Sport: ${document.getElementById('note-sport').value}`);
 
-    // Loading State
     const btn = document.getElementById('btnSubmit');
-    btn.innerText = "Menyimpan...";
+    btn.innerHTML = '<span class="spinner"></span> Menyimpan...';
     btn.disabled = true;
 
     try {
-        // SIMPAN KE FIREBASE
         await addDoc(logsRef, {
             date: date,
             user: user,
@@ -118,32 +106,90 @@ document.getElementById('btnSubmit').addEventListener('click', async () => {
             if: currentCheckIn.if,
             sport: currentCheckIn.sport,
             notes: notes.join(', '),
-            timestamp: new Date() // untuk sorting teknis
+            timestamp: new Date()
         });
 
         alert("Berhasil lapor! Data tersimpan di cloud.");
         window.app.resetForm();
-        window.app.switchTab('progress'); // otomatis pindah ke tab Grafik & Log
+        window.app.switchTab('progress');
     } catch (e) {
         console.error("Error adding document: ", e);
         alert("Gagal menyimpan: " + e.message);
-        btn.innerText = "Simpan Laporan";
+    } finally {
+        btn.innerHTML = 'Simpan Laporan';
         btn.disabled = false;
     }
 });
 
-// --- 5. BACA DATA REALTIME & RENDER ---
-const q = query(logsRef, orderBy("date", "desc")); // Urutkan tanggal terbaru
+// --- 5. EVENT DELEGATION UNTUK LOG TABLE ---
+document.querySelector('#logTable tbody').addEventListener('click', (e) => {
+    const row = e.target.closest('.log-row');
+    if (!row) return;
+
+    const next = row.nextElementSibling;
+    if (next && next.classList.contains('detail-row')) {
+        next.remove();
+        return;
+    }
+
+    const notes = row.dataset.notes;
+    const score = row.dataset.score;
+    const sugar = row.dataset.sugar === '1';
+    const ifVal = row.dataset.if === '1';
+    const sport = row.dataset.sport === '1';
+
+    const detail = document.createElement('tr');
+    detail.className = 'detail-row';
+    detail.innerHTML = `
+        <td colspan="6">
+            <div><strong>Ringkasan Hari Ini:</strong> Skor ${score} / 3</div>
+            <div style="margin:4px 0 2px;">
+                Sugar: ${sugar ? '✅' : '❌'} &nbsp;|&nbsp;
+                IF: ${ifVal ? '✅' : '❌'} &nbsp;|&nbsp;
+                Olahraga: ${sport ? '✅' : '❌'}
+            </div>
+            <div>
+                <strong>Alasan:</strong>
+                <span>${notes || '-'}</span>
+            </div>
+        </td>
+    `;
+
+    row.parentNode.insertBefore(detail, row.nextSibling);
+});
+
+// --- 6. RENDER EMPTY STATE ---
+function renderEmptyState(tbody) {
+    tbody.innerHTML = `
+        <tr class="empty-state-row">
+            <td colspan="6">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <div class="empty-state-text">Belum ada data</div>
+                    <div class="empty-state-hint">Mulai dengan mengisi laporan harian di tab Check-in</div>
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+// --- 7. BACA DATA REALTIME & RENDER ---
+const q = query(logsRef, orderBy("date", "desc"));
 
 onSnapshot(q, (snapshot) => {
     const logs = [];
     const tbody = document.querySelector('#logTable tbody');
     tbody.innerHTML = '';
 
+    if (snapshot.empty) {
+        renderEmptyState(tbody);
+        updateChart([]);
+        return;
+    }
+
     snapshot.forEach((doc) => {
         const data = doc.data();
 
-        // Hitung skor harian (0-3)
         let score = 0;
         if (data.sugar) score++;
         if (data.if) score++;
@@ -152,12 +198,10 @@ onSnapshot(q, (snapshot) => {
         const enriched = { ...data, score };
         logs.push(enriched);
 
-        // Potong notes untuk tampilan singkat di tabel
         const shortNotes = data.notes && data.notes.length > 40
             ? data.notes.substring(0, 37) + '...'
             : (data.notes || '');
 
-        // Render Tabel Log (baris utama)
         const row = document.createElement('tr');
         row.className = 'log-row';
         row.dataset.notes = data.notes || '';
@@ -169,13 +213,13 @@ onSnapshot(q, (snapshot) => {
         row.innerHTML = `
             <td>${data.date.substring(5)}</td>
             <td><strong>${data.user}</strong></td>
-            <td>${data.sugar ? '<span class="dot dot-green"></span>' : '<span class="dot dot-red"></span>'}</td>
-            <td>${data.if ? '<span class="dot dot-green"></span>' : '<span class="dot dot-red"></span>'}</td>
-            <td>${data.sport ? '<span class="dot dot-green"></span>' : '<span class="dot dot-red"></span>'}</td>
+            <td><span class="status-indicator ${data.sugar ? 'success-indicator' : 'fail-indicator'}">${data.sugar ? '✓' : '✕'}</span></td>
+            <td><span class="status-indicator ${data.if ? 'success-indicator' : 'fail-indicator'}">${data.if ? '✓' : '✕'}</span></td>
+            <td><span class="status-indicator ${data.sport ? 'success-indicator' : 'fail-indicator'}">${data.sport ? '✓' : '✕'}</span></td>
             <td>
                 <div class="ket-main">
                     ${data.notes ? '📝' : '-'}
-                    ${shortNotes ? `<span style="font-size:10px; color:#888;">${shortNotes}</span>` : ''}
+                    ${shortNotes ? `<span style="font-size:10px; color:#8b949e;">${shortNotes}</span>` : ''}
                 </div>
                 <div class="ket-sub">Skor: ${score} / 3</div>
             </td>
@@ -184,77 +228,32 @@ onSnapshot(q, (snapshot) => {
         tbody.appendChild(row);
     });
 
-    // Pasang event click untuk show/hide detail alasan di bawah baris
-    document.querySelectorAll('.log-row').forEach(row => {
-        row.addEventListener('click', () => {
-            const next = row.nextElementSibling;
-            if (next && next.classList.contains('detail-row')) {
-                // Jika sudah ada detail row, toggle (hapus)
-                next.remove();
-                return;
-            }
-
-            const notes = row.dataset.notes;
-            const score = row.dataset.score;
-            const sugar = row.dataset.sugar === '1';
-            const ifVal = row.dataset.if === '1';
-            const sport = row.dataset.sport === '1';
-
-            const detail = document.createElement('tr');
-            detail.className = 'detail-row';
-            detail.innerHTML = `
-                <td colspan="6">
-                    <div><strong>Ringkasan Hari Ini:</strong> Skor ${score} / 3</div>
-                    <div style="margin:4px 0 2px;">
-                        Sugar: ${sugar ? '✅' : '❌'} &nbsp;|&nbsp;
-                        IF: ${ifVal ? '✅' : '❌'} &nbsp;|&nbsp;
-                        Olahraga: ${sport ? '✅' : '❌'}
-                    </div>
-                    <div>
-                        <strong>Alasan:</strong>
-                        <span>${notes || '-'}</span>
-                    </div>
-                </td>
-            `;
-
-            row.parentNode.insertBefore(detail, row.nextSibling);
-        });
-    });
-
     updateChart(logs);
+}, (error) => {
+    console.error("Firebase connection error:", error);
+    alert("Koneksi ke database gagal. Pastikan Anda terhubung ke internet.");
 });
 
-// --- 6. LOGIKA GRAFIK CHART.JS ---
+// --- 8. LOGIKA GRAFIK CHART.JS ---
 function updateChart(logs) {
-    // Kita perlu mengubah format data agar bisa dibaca Chart.js
-    // Format: Group by Date -> Calculate Score per User
-    
-    // Sort logs dari lama ke baru untuk grafik (kiri ke kanan)
     const sortedLogs = [...logs].sort((a, b) => new Date(a.date) - new Date(b.date));
     
-    // Siapkan struktur data
     let chartData = {
         Roy: [],
         Abeen: []
     };
 
     sortedLogs.forEach(log => {
-        // Hitung Skor (Max 3 poin per hari)
-        let score = 0;
-        if (log.sugar) score++;
-        if (log.if) score++;
-        if (log.sport) score++;
-
         if (log.user === 'Roy') {
-            chartData.Roy.push({ x: log.date, y: score });
+            chartData.Roy.push({ x: log.date, y: log.score, sugar: log.sugar, if: log.if, sport: log.sport });
         } else if (log.user === 'Abeen') {
-            chartData.Abeen.push({ x: log.date, y: score });
+            chartData.Abeen.push({ x: log.date, y: log.score, sugar: log.sugar, if: log.if, sport: log.sport });
         }
     });
 
     const ctx = document.getElementById('performanceChart').getContext('2d');
 
-    if (myChart) myChart.destroy(); // Hapus chart lama jika ada update
+    if (myChart) myChart.destroy();
 
     myChart = new Chart(ctx, {
         type: 'line',
@@ -263,38 +262,103 @@ function updateChart(logs) {
                 {
                     label: 'Roy',
                     data: chartData.Roy,
-                    borderColor: '#4a90e2', // Biru
-                    backgroundColor: 'rgba(74, 144, 226, 0.1)',
-                    tension: 0.3,
-                    fill: true
+                    borderColor: '#58a6ff',
+                    backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 5,
+                    pointHoverRadius: 8,
+                    pointBackgroundColor: '#58a6ff',
+                    pointBorderColor: '#0d1117',
+                    pointBorderWidth: 2
                 },
                 {
                     label: 'Abeen',
                     data: chartData.Abeen,
-                    borderColor: '#e84393', // Pink
-                    backgroundColor: 'rgba(232, 67, 147, 0.1)',
-                    tension: 0.3,
-                    fill: true
+                    borderColor: '#f78166',
+                    backgroundColor: 'rgba(247, 129, 102, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 5,
+                    pointHoverRadius: 8,
+                    pointBackgroundColor: '#f78166',
+                    pointBorderColor: '#0d1117',
+                    pointBorderWidth: 2
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#e6edf3',
+                        font: { family: 'Plus Jakarta Sans', size: 12, weight: '500' },
+                        padding: 16,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(22, 27, 34, 0.95)',
+                    titleColor: '#e6edf3',
+                    bodyColor: '#8b949e',
+                    borderColor: '#30363d',
+                    borderWidth: 1,
+                    padding: 12,
+                    cornerRadius: 8,
+                    titleFont: { family: 'Plus Jakarta Sans', size: 13, weight: '600' },
+                    bodyFont: { family: 'Plus Jakarta Sans', size: 12 },
+                    displayColors: true,
+                    callbacks: {
+                        title: (items) => {
+                            const date = new Date(items[0].raw.x);
+                            return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' });
+                        },
+                        label: (context) => {
+                            const d = context.raw;
+                            return [
+                                `${context.dataset.label}: ${d.y}/3 poin`,
+                                `  Sugar: ${d.sugar ? '✓' : '✕'} | IF: ${d.if ? '✓' : '✕'} | Olahraga: ${d.sport ? '✓' : '✕'}`
+                            ];
+                        }
+                    }
+                }
+            },
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 3, // Skor maksimal 3
-                    ticks: { stepSize: 1 }
+                    max: 3,
+                    ticks: { 
+                        stepSize: 1,
+                        color: '#8b949e',
+                        font: { family: 'Plus Jakarta Sans', size: 11 }
+                    },
+                    grid: {
+                        color: 'rgba(48, 54, 61, 0.5)',
+                        drawBorder: false
+                    }
                 },
                 x: {
-                    type: 'category', // Sumbu X berupa tanggal
-                    labels: [...new Set(sortedLogs.map(l => l.date))] // Ambil tanggal unik
+                    type: 'category',
+                    labels: [...new Set(sortedLogs.map(l => l.date))],
+                    ticks: {
+                        color: '#8b949e',
+                        font: { family: 'Plus Jakarta Sans', size: 10 },
+                        maxRotation: 45
+                    },
+                    grid: {
+                        display: false
+                    }
                 }
             }
         }
     });
 }
 
-// Set default tanggal hari ini
 document.getElementById('dateInput').valueAsDate = new Date();
